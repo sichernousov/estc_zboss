@@ -145,7 +145,7 @@ static void check_btn_status (zb_uint8_t param) ZB_CALLBACK
   {
     btn0_pressed++;
     btn1_pressed++;
-    if (btn0_pressed >= PRESS_BORDER) && (btn1_pressed >= PRESS_BORDER))
+    if ((btn0_pressed >= PRESS_BORDER) && (btn1_pressed >= PRESS_BORDER))
     {
       btn0_pressed = 0;
       btn1_pressed = 0;
@@ -174,8 +174,9 @@ static void check_btn_status (zb_uint8_t param) ZB_CALLBACK
     {
       btn0_pressed = 0;
       //переключаем светодиод (on/off)
+      zb_buf_t *buf_tmp = ZB_BUF_FROM_REF(param);
       zb_uint16_t * paddr;
-      paddr = ZB_GET_BUF_TAIL (buf, sizeof(zb_uint16_t));
+      paddr = ZB_GET_BUF_TAIL (buf_tmp, sizeof(zb_uint16_t));
       *paddr = 0;
  
       ZB_SCHEDULE_CALLBACK(send_cmd_toggle, ZB_REF_FROM_BUF(buf_tmp)); 
@@ -191,8 +192,9 @@ static void check_btn_status (zb_uint8_t param) ZB_CALLBACK
     {
       btn1_pressed = 0;
       //повышаем яркость
+      zb_buf_t *buf_tmp = ZB_BUF_FROM_REF(param);
       zb_uint16_t * paddr;
-      paddr = ZB_GET_BUF_TAIL (buf, sizeof(zb_uint16_t));
+      paddr = ZB_GET_BUF_TAIL (buf_tmp, sizeof(zb_uint16_t));
       *paddr = 0;
 
       ZB_SCHEDULE_CALLBACK(send_cmd_bright_up, ZB_REF_FROM_BUF(buf_tmp)); 

@@ -14,10 +14,18 @@
 // Функция инициализации переферии.
 void LedInit(void);
 
-// Функция устанавливает заданный в формате RGB цвет на светодиод.
+// Функция установки и чтения заданного в формате RGB цвета на светодиоде.
 void LedSetColor (uint32_t rgb);
+uint32_t LedGetColor (void);
 
-// Функция выключения светодиода.
+// Функции включения, выключения, переключения и возвращения текущего статуса светодиода.
 void LedTurnOff (void);
+void LedTurnOn (void);
+void LedToggle (void);
+uint8_t LedGetStatus (void);
+
+//Функции управления яркостью светодиода
+void LedBrightUp (void);
+void LedBrightDown (void);
 
 #endif

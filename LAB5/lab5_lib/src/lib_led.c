@@ -8,14 +8,19 @@
 #include "../include/lib_led.h"
 
 //!Период таймера.
-#define T_PERIOD  (256 - 1)
+#define T_PERIOD    (256 - 1)
 
+#define BRIGHT_STEP (T_PERIOD / 10)
 //!Набор базовых цветов и соответствующих им номеров используемых каналов в ШИМ.
 typedef enum {
 	chRed   = 1,
 	chGreen = 2,
 	chBlue  = 3
 } t_led_channel;
+
+//!Глобальные переменные
+static uint8_t  LED_STATUS = 1; //0 - off, 1 - on
+static uint32_t LED_CUR_COLOR = 0x000000; 
 
 /*! 
 \brief Функция цветокоррекции для светодиода. <br>
@@ -125,23 +130,104 @@ void LedInit(void)
 Примеры использования:
 \code
 	LedSetColor (0xFF0000); //Red
-    LedSetColor (0x00FFFF); //Aqua
-    LedSetColor (0xC0C0C0); //Silver
+	LedSetColor (0x00FFFF); //Aqua
+	LedSetColor (0xC0C0C0); //Silver
 \endcode
 \param[in] rgb Код цвета в формате RGB (3 байта)
 */
 void LedSetColor (uint32_t rgb)
 {
-	set_channel (chRed,   (uint8_t) ((rgb & 0xFF0000) >> 16));
-	set_channel (chGreen, (uint8_t) ((rgb & 0xFF00)   >> 8) );
-	set_channel (chBlue,  (uint8_t) ( rgb & 0xFF)           );
+	LED_CUR_COLOR = rgb;
+	if (LED_STATUS) {
+		set_channel (chRed,   (uint8_t) ((rgb & 0xFF0000) >> 16));
+		set_channel (chGreen, (uint8_t) ((rgb & 0xFF00)   >> 8) );
+		set_channel (chBlue,  (uint8_t) ( rgb & 0xFF)           );
+	}
+}
+
+uint32_t LedGetColor (void)
+{
+	return LED_CUR_COLOR;
 }
 
 /*!
-\brief Функция выключения светодиода. <br>
-Аналогична вызову функции LedSetColor(0x00).
+\brief Функции включения, выключения и переключения светодиода. <br>
 */
+void LedTurnOn (void)
+{
+  	LED_STATUS = 1;
+	LedSetColor (LED_CUR_COLOR);
+}
+
 void LedTurnOff (void)
 {
-	LedSetColor(0x00);
+  	LED_STATUS = 0;
+	set_channel (chRed,   0);
+	set_channel (chGreen, 0);
+	set_channel (chBlue,  0);
 }
+
+void LedToggle (void)
+{
+  	if (LED_STATUS) LedTurnOff();
+	else LedTurnOn();
+}
+
+uint8_t LedGetStatus (void)
+{
+	return LED_STATUS;
+}
+
+/*!
+\brief Функции изменения яркости светодиода. <br>
+*/
+void LedBrightUp (void)
+{
+	uint32_t current_color = LedGetColor();
+	uint8_t new_red   = (uint8_t) (current_color >> 16);
+	uint8_t new_green = (uint8_t) (current_color >> 8);
+	uint8_t new_blue  = (uint8_t) (current_color);
+	
+	if ( (0xFF - new_red) >= BRIGHT_STEP )
+		new_red += BRIGHT_STEP;
+	else 
+		new_red = 0xFF;
+	
+	if ( (0xFF - new_green) >= BRIGHT_STEP )
+		new_green += BRIGHT_STEP;
+	else 
+		new_green = 0xFF;
+
+	if ( (0xFF - new_blue) >= BRIGHT_STEP )
+		new_blue += BRIGHT_STEP;
+	else 
+		new_blue = 0xFF;
+
+	LedSetColor((new_red << 16) + (new_green << 8) + new_blue);
+}
+
+void LedBrightDown (void)
+{
+	uint32_t current_color = LedGetColor();
+	uint8_t new_red   = (uint8_t) (current_color >> 16);
+	uint8_t new_green = (uint8_t) (current_color >> 8);
+	uint8_t new_blue  = (uint8_t) (current_color);
+	
+	if ( new_red >= BRIGHT_STEP )
+		new_red -= BRIGHT_STEP;
+	else 
+		new_red = 0x00;
+	
+	if ( new_green >= BRIGHT_STEP )
+		new_green -= BRIGHT_STEP;
+	else 
+		new_green = 0x00;
+
+	if ( new_blue >= BRIGHT_STEP )
+		new_blue -= BRIGHT_STEP;
+	else 
+		new_blue = 0x00;
+
+	LedSetColor((new_red << 16) + (new_green << 8) + new_blue);
+}
+
