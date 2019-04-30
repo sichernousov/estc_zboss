@@ -143,21 +143,20 @@ void data_indication(zb_uint8_t param) ZB_CALLBACK
     break;
 
     case CMD_TOGGLE: 
-      TRACE_MSG(TRACE_APS2, "BULB: TOGGLE", (FMT__0));
+      LedToggle();
     break;
 
     case CMD_SET_COLOR:
       tmp_color = ptr + 1;
       LedSetColor(*tmp_color & 0xFFFFFF);
-      TRACE_MSG(TRACE_APS2, "BULB: SET COLOR (%x)", (FMT__D, color_hex));
     break;
 	
     case CMD_BRIGHT_UP: 
-      TRACE_MSG(TRACE_APS2, "BULB: BRIGHT UP", (FMT__0));
+      LedBrightUp();
     break;
 
     case CMD_BRIGHT_DOWN: 
-      TRACE_MSG(TRACE_APS2, "BULB: BRIGHT DOWN", (FMT__0));
+      LedBrightDown();
     break;
 
     default:

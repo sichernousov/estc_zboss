@@ -66,19 +66,19 @@ PURPOSE: Test for ZC application written using ZDO.
 
 zb_ieee_addr_t g_ze_addr = {0x01, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03};
 
-zb_uint32_t g_code_color[] = {0xFFD700, 0xFF00FF, 0x6A5ACD, 0x228822, 0x00AAFA};
-zb_uint8_t g_index_color = 0;
+static const zb_uint32_t g_code_color[] = {0xFFD700, 0xFF00FF, 0x6A5ACD, 0x228822, 0x00AAFA};
+static zb_uint8_t g_index_color = 0;
 
-void init_periph (void);
-void check_btn_status (zb_uint8_t param) ZB_CALLBACK;
-void send_next_cmd (zb_uint8_t param) ZB_CALLBACK;
-void send_data (zb_uint8_t param) ZB_CALLBACK;
-void send_cmd_turn_on (zb_uint8_t param) ZB_CALLBACK;
-void send_cmd_turn_off (zb_uint8_t param) ZB_CALLBACK;
-void send_cmd_toggle (zb_uint8_t param) ZB_CALLBACK;
-void send_cmd_set_color (zb_uint8_t param) ZB_CALLBACK;
-void send_cmd_bright_up (zb_uint8_t param) ZB_CALLBACK;
-void send_cmd_bright_down (zb_uint8_t param) ZB_CALLBACK;
+static void init_periph (void);
+static void check_btn_status (zb_uint8_t param) ZB_CALLBACK;
+static void send_next_cmd (zb_uint8_t param) ZB_CALLBACK;
+static void send_data (zb_uint8_t param) ZB_CALLBACK;
+static void send_cmd_turn_on (zb_uint8_t param) ZB_CALLBACK;
+static void send_cmd_turn_off (zb_uint8_t param) ZB_CALLBACK;
+static void send_cmd_toggle (zb_uint8_t param) ZB_CALLBACK;
+static void send_cmd_set_color (zb_uint8_t param) ZB_CALLBACK;
+static void send_cmd_bright_up (zb_uint8_t param) ZB_CALLBACK;
+static void send_cmd_bright_down (zb_uint8_t param) ZB_CALLBACK;
 
 /*
   ZE joins to ZC(ZR), then sends APS packet.
@@ -133,18 +133,24 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
   }
 }
 
-void check_btn_status (zb_uint8_t param) ZB_CALLBACK
+static void check_btn_status (zb_uint8_t param) ZB_CALLBACK
 {
-  #define PRESS_BORDER 150
+  #define PRESS_BORDER 120
   static uint32_t btn0_pressed = 0;
+  static uint32_t btn1_pressed = 0;
 
-  if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == 0)
+  //обе кнопки зажаты
+  if ((GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == 0) &&
+       (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_1) == 0)) 
   {
     btn0_pressed++;
-    if (btn0_pressed >= PRESS_BORDER)
+    btn1_pressed++;
+    if (btn0_pressed >= PRESS_BORDER) && (btn1_pressed >= PRESS_BORDER))
     {
       btn0_pressed = 0;
+      btn1_pressed = 0;
 
+      //меняем цвет
       zb_buf_t *buf_tmp = ZB_BUF_FROM_REF(param);
 
       param_set_color_t * tmp_color;
@@ -156,90 +162,54 @@ void check_btn_status (zb_uint8_t param) ZB_CALLBACK
       if (g_index_color >= ARRAY_SIZE(g_code_color)) g_index_color = 0;
 
       ZB_SCHEDULE_CALLBACK(send_cmd_set_color, ZB_REF_FROM_BUF(buf_tmp));
-      ZB_SCHEDULE_ALARM(check_btn_status, ZB_REF_FROM_BUF(zb_get_out_buf()), 1);
+      ZB_GET_OUT_BUF_DELAYED(check_btn_status);
     }
-    else
-    {
-      ZB_SCHEDULE_ALARM(check_btn_status, param, 1);
-    }
+    else ZB_SCHEDULE_ALARM(check_btn_status, param, 1);
   }
+  //нулевая кнопка зажата
+  else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_0) == 0)
+  {
+    btn0_pressed++;
+    if (btn0_pressed >= PRESS_BORDER)
+    {
+      btn0_pressed = 0;
+      //переключаем светодиод (on/off)
+      zb_uint16_t * paddr;
+      paddr = ZB_GET_BUF_TAIL (buf, sizeof(zb_uint16_t));
+      *paddr = 0;
+ 
+      ZB_SCHEDULE_CALLBACK(send_cmd_toggle, ZB_REF_FROM_BUF(buf_tmp)); 
+      ZB_GET_OUT_BUF_DELAYED(check_btn_status);  
+    }
+    else ZB_SCHEDULE_ALARM(check_btn_status, param, 1);
+  }
+  //первая кнопка зажата
+  else if (GPIO_ReadInputDataBit(GPIOE, GPIO_Pin_1) == 0)
+  {
+    btn1_pressed++;
+    if (btn1_pressed >= PRESS_BORDER)
+    {
+      btn1_pressed = 0;
+      //повышаем яркость
+      zb_uint16_t * paddr;
+      paddr = ZB_GET_BUF_TAIL (buf, sizeof(zb_uint16_t));
+      *paddr = 0;
+
+      ZB_SCHEDULE_CALLBACK(send_cmd_bright_up, ZB_REF_FROM_BUF(buf_tmp)); 
+      ZB_GET_OUT_BUF_DELAYED(check_btn_status);
+    }
+    else ZB_SCHEDULE_ALARM(check_btn_status, param, 1);
+  }
+  //кнопки не нажаты
   else
   {
     btn0_pressed = 0;
+    btn1_pressed = 0;
     ZB_SCHEDULE_ALARM(check_btn_status, param, 1);
   }
 }
 
-/*
-void send_next_cmd (zb_uint8_t param) ZB_CALLBACK
-{
-  TRACE_MSG(TRACE_APS1, ">> send_next_cmd param %hd", (FMT__H, param));
-
-  if (param == 0)
-  {
-    ZB_GET_OUT_BUF_DELAYED(send_next_cmd);
-   return;
-  }
-
-  zb_buf_t *buf_tmp = ZB_BUF_FROM_REF(param);
-  zb_uint16_t * paddr = NULL;
-
-  g_num++;
-  switch (g_num)
-  {
-     case 1:
-       //cmd_turn_off
-       paddr = ZB_GET_BUF_TAIL (buf_tmp, sizeof(zb_uint16_t));
-       *paddr = 0;
-       ZB_SCHEDULE_CALLBACK(send_cmd_turn_off, ZB_REF_FROM_BUF(buf_tmp));
-     break;
-
-     case 2:
-       //cmd_turn_on
-       paddr = ZB_GET_BUF_TAIL (buf_tmp, sizeof(zb_uint16_t));
-       *paddr = 0;
-       ZB_SCHEDULE_CALLBACK(send_cmd_turn_on, ZB_REF_FROM_BUF(buf_tmp));
-     break;
-
-     case 3:
-       //cmd_toggle
-       paddr = ZB_GET_BUF_TAIL (buf_tmp, sizeof(zb_uint16_t));
-       *paddr = 0;
-       ZB_SCHEDULE_CALLBACK(send_cmd_toggle, ZB_REF_FROM_BUF(buf_tmp));
-     break;
-
-     case 4: {
-       //cmd_set_color
-       param_set_color_t * tmp_color;
-       tmp_color = ZB_GET_BUF_TAIL (buf_tmp, sizeof(param_set_color_t));
-       tmp_color->color   = 0xFF;
-       tmp_color->addr = 0;
-       ZB_SCHEDULE_CALLBACK(send_cmd_set_color, ZB_REF_FROM_BUF(buf_tmp));
-     }
-     break;
-
-     case 5:
-       //cmd_cmd_bright_up
-       paddr = ZB_GET_BUF_TAIL (buf_tmp, sizeof(zb_uint16_t));
-       *paddr = 0;
-       ZB_SCHEDULE_CALLBACK(send_cmd_bright_up, ZB_REF_FROM_BUF(buf_tmp));
-     break; 
-
-     case 6:
-       //cmd_cmd_bright_down
-       paddr = ZB_GET_BUF_TAIL (buf_tmp, sizeof(zb_uint16_t));
-       *paddr = 0;
-       ZB_SCHEDULE_CALLBACK(send_cmd_bright_down, ZB_REF_FROM_BUF(buf_tmp));
-     break;
-
-     default:
-        TRACE_MSG(TRACE_APS1, "CMD: ERROR", (FMT__0));
-  }
-  if (g_num < 7) ZB_SCHEDULE_ALARM(send_next_cmd, 0, ZB_TIME_ONE_SECOND*2);//ZB_GET_OUT_BUF_DELAYED(send_next_cmd);
-}
-*/
-
-void send_cmd_turn_off (zb_uint8_t param) ZB_CALLBACK
+static void send_cmd_turn_off (zb_uint8_t param) ZB_CALLBACK
 {
   TRACE_MSG(TRACE_APS1, "CMD: send_cmd_turn_off", (FMT__0));
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -250,7 +220,7 @@ void send_cmd_turn_off (zb_uint8_t param) ZB_CALLBACK
   ZB_SCHEDULE_CALLBACK(send_data, param);
 }
 
-void send_cmd_turn_on (zb_uint8_t param) ZB_CALLBACK
+static void send_cmd_turn_on (zb_uint8_t param) ZB_CALLBACK
 {
   TRACE_MSG(TRACE_APS1, "CMD: send_cmd_turn_on", (FMT__0));
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -261,7 +231,7 @@ void send_cmd_turn_on (zb_uint8_t param) ZB_CALLBACK
   ZB_SCHEDULE_CALLBACK(send_data, param);
 }
 
-void send_cmd_toggle (zb_uint8_t param) ZB_CALLBACK
+static void send_cmd_toggle (zb_uint8_t param) ZB_CALLBACK
 {
   TRACE_MSG(TRACE_APS1, "CMD: send_cmd_toggle", (FMT__0));
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -272,7 +242,7 @@ void send_cmd_toggle (zb_uint8_t param) ZB_CALLBACK
   ZB_SCHEDULE_CALLBACK(send_data, param);
 }
 
-void send_cmd_set_color (zb_uint8_t param) ZB_CALLBACK
+static void send_cmd_set_color (zb_uint8_t param) ZB_CALLBACK
 {
   TRACE_MSG(TRACE_APS1, "CMD: send_cmd_set_color", (FMT__0));
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -296,7 +266,7 @@ void send_cmd_set_color (zb_uint8_t param) ZB_CALLBACK
   ZB_SCHEDULE_CALLBACK(send_data, param);
 }
 
-void send_cmd_bright_up (zb_uint8_t param) ZB_CALLBACK
+static void send_cmd_bright_up (zb_uint8_t param) ZB_CALLBACK
 {
   TRACE_MSG(TRACE_APS1, "CMD: send_cmd_up_bright", (FMT__0));
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -307,7 +277,7 @@ void send_cmd_bright_up (zb_uint8_t param) ZB_CALLBACK
   ZB_SCHEDULE_CALLBACK(send_data, param);
 }
 
-void send_cmd_bright_down (zb_uint8_t param) ZB_CALLBACK
+static void send_cmd_bright_down (zb_uint8_t param) ZB_CALLBACK
 {
   TRACE_MSG(TRACE_APS1, "CMD: send_cmd_down_bright", (FMT__0));
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -318,7 +288,7 @@ void send_cmd_bright_down (zb_uint8_t param) ZB_CALLBACK
   ZB_SCHEDULE_CALLBACK(send_data, param);
 }
 
-void send_data (zb_uint8_t param) ZB_CALLBACK
+static void send_data (zb_uint8_t param) ZB_CALLBACK
 {
   TRACE_MSG(TRACE_APS1, "send_data", (FMT__0));
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -341,7 +311,7 @@ void send_data (zb_uint8_t param) ZB_CALLBACK
 }
 
 
-void init_periph () {
+static void init_periph () {
 
   /* Init GPIO */
   GPIO_InitTypeDef GPIO_InitStructure;
